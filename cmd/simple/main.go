@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/xyproto/midi"
 )
@@ -10,8 +11,21 @@ import (
 func main() {
 	// Create a slice of MIDI notes
 	notes := []midi.MidiNote{
-		{440, 100, 127, 1, 0, false},
-		{523.25, 100, 127, 1, 0, false},
+		{midi.NoteToFrequency("C4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("D4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("E4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("F4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("G4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("A4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("B4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("C5"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("B4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("A4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("G4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("F4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("E4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("D4"), time.Millisecond * 300, 127, 1, 0, false},
+		{midi.NoteToFrequency("C4"), time.Millisecond * 300, 127, 1, 0, false},
 	}
 
 	// Convert the notes to MIDI bytes
