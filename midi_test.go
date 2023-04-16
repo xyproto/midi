@@ -34,14 +34,15 @@ func TestFrequencyToMidi(t *testing.T) {
 }
 
 func TestConvertToMIDI(t *testing.T) {
-	notes := []MidiNote{
-		{Frequency: 440.0, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
-		{Frequency: 261.63, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
-		{Frequency: 587.33, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
+	notes := [][]MidiNote{
+		{
+			{Frequency: 440.0, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
+			{Frequency: 261.63, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
+			{Frequency: 587.33, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
+		},
 	}
-	tracks := ConvertToMIDITracks(notes)
 
-	midiData, err := ConvertToMIDI(tracks)
+	midiData, err := ConvertToMIDI(notes)
 	if err != nil {
 		t.Fatalf("Failed to convert to MIDI: %v", err)
 	}

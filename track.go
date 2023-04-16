@@ -1,112 +1,81 @@
 package midi
 
 import (
+	"bytes"
 	"io"
-	"time"
 )
 
-// ConvertToMIDITracks converts a slice of MidiNotes into a slice of MIDI tracks.
-func ConvertToMIDITracks(notes []MidiNote) [][]byte {
-	tracks := [][]byte{nil}
-	lastNoteOff := -1
-	lastNoteTime := 0
-	for _, note := range notes {
-		deltaTime := int(note.Duration/time.Millisecond) - lastNoteTime
-		if deltaTime < 0 {
-			deltaTime = 0
-		}
-		lastNoteTime = int(note.Duration / time.Millisecond)
+var lastNoteOn MidiNote
 
-		midiNote, pitchBend := FrequencyToMidi(note.Frequency)
+func ConvertToMIDITracks(tracks [][]MidiNote) ([][]byte, error) {
+	var midiTracks [][]byte
+	for _, track := range tracks {
+		buf := new(bytes.Buffer)
 
-		// If this note starts after the previous one, add a new track
-		if deltaTime > 0 {
-			tracks = append(tracks, nil)
-			lastNoteOff = -1
+		// Write track header
+		WriteHeader(buf, 1)
+
+		// Write track data
+		err := WriteTrack(buf, track)
+		if err != nil {
+			return nil, err
 		}
 
-		// If this note starts after the last note ended, add a new event to the track
-		if lastNoteOff != -1 {
-			tracks[len(tracks)-1] = append(tracks[len(tracks)-1], deltaTimeToVLQ(deltaTime)...)
-			WriteNoteOff(tracks[len(tracks)-1], note.Channel, midiNote, 0)
-		}
-
-		tracks[len(tracks)-1] = append(tracks[len(tracks)-1], deltaTimeToVLQ(0)...)
-		WriteNoteOn(tracks[len(tracks)-1], note.Channel, midiNote, note.Velocity)
-		tracks[len(tracks)-1] = append(tracks[len(tracks)-1], deltaTimeToVLQ(0)...)
-		WritePitchBend(tracks[len(tracks)-1], note.Channel, pitchBend)
-
-		lastNoteOff = len(tracks[len(tracks)-1]) - 3
+		// Add track data to midiTracks
+		midiTracks = append(midiTracks, buf.Bytes())
 	}
-	return tracks
+
+	return midiTracks, nil
 }
 
 func WriteTrack(w io.Writer, notes []MidiNote) error {
-	if len(notes) == 0 {
-		return nil
+	// Calculate track length in bytes
+	trackLength := 0
+	for i, note := range notes {
+		deltaTime := 0
+		if i > 0 {
+			deltaTime = int(note.Duration.Seconds() * 96)
+		}
+		trackLength += deltaTimeLength(deltaTime)
+		trackLength += 3 // Note on
+		trackLength += 3 // Note off
 	}
 
-	deltaTime := 0
-	var lastNoteOn MidiNote
-	var err error
+	// Write track header
+	w.Write([]byte("MTrk"))
+	w.Write(uint32ToBytes(uint32(trackLength)))
 
-	for _, note := range notes {
-		if note.Slur {
-			if lastNoteOn.Frequency == note.Frequency && lastNoteOn.Channel == note.Channel {
-				// continue playing the previous note
-				continue
-			} else {
-				// end the previous note
-				err = WriteNoteOff(w, lastNoteOn.Channel, lastNoteOn.MidiNote, deltaTime)
-				if err != nil {
-					return err
-				}
-				deltaTime = 0
-			}
-		} else {
-			if lastNoteOn.Frequency != note.Frequency || lastNoteOn.Channel != note.Channel {
-				// end the previous note if there was one
-				if lastNoteOn.Frequency > 0 {
-					err = WriteNoteOff(w, lastNoteOn.Channel, lastNoteOn.MidiNote, deltaTime)
-					if err != nil {
-						return err
-					}
-					deltaTime = 0
-				}
-
-				// start the new note
-				midiNote, pitchBend := FrequencyToMidi(note.Frequency)
-				err = WriteNoteOn(w, note.Channel, midiNote, note.Velocity)
-				if err != nil {
-					return err
-				}
-				err = WritePitchBend(w, note.Channel, pitchBend)
-				if err != nil {
-					return err
-				}
-
-				lastNoteOn = MidiNote{
-					Frequency:  note.Frequency,
-					MidiNote:   midiNote,
-					Velocity:   note.Velocity,
-					Channel:    note.Channel,
-					Instrument: note.Instrument,
-					Slur:       note.Slur,
-				}
-
-				deltaTime = 0
-			}
+	// Write MIDI events
+	for i, note := range notes {
+		deltaTime := 0
+		if i > 0 {
+			deltaTime = int(note.Duration.Seconds() * 96)
 		}
 
-		deltaTime += int(DurationToTicks(note.Duration))
-	}
-
-	// end the last note
-	if lastNoteOn.Frequency > 0 {
-		err = WriteNoteOff(w, lastNoteOn.Channel, lastNoteOn.MidiNote, deltaTime)
+		// Write delta time
+		err := writeDeltaTime(w, deltaTime)
 		if err != nil {
 			return err
 		}
+
+		// Write program change
+		WriteProgramChange(w, note.Channel, note.Instrument)
+
+		// Write note on
+		midiNote, pitchBend := FrequencyToMidi(note.Frequency)
+		WriteNoteOn(w, note.Channel, midiNote, note.Velocity)
+
+		// Write pitch bend if needed
+		if pitchBend != 8192 {
+			WritePitchBend(w, note.Channel, pitchBend)
+		}
+
+		// Write note off
+		if !note.Slur {
+			WriteNoteOff(w, note.Channel, midiNote, deltaTime)
+		}
+
+		lastNoteOn = note
 	}
 
 	return nil
