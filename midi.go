@@ -26,6 +26,43 @@ func FrequencyToMidi(freq float64) (int, int) {
 	return midiNoteRounded, pitchBend
 }
 
+func NoteToFrequency(note string) float64 {
+	noteNameToPitch := map[string]float64{
+		"C":  0,
+		"C#": 1,
+		"Db": 1,
+		"D":  2,
+		"D#": 3,
+		"Eb": 3,
+		"E":  4,
+		"F":  5,
+		"F#": 6,
+		"Gb": 6,
+		"G":  7,
+		"G#": 8,
+		"Ab": 8,
+		"A":  9,
+		"A#": 10,
+		"Bb": 10,
+		"B":  11,
+		"H":  11,
+	}
+
+	if len(note) < 2 || len(note) > 3 {
+		return 0
+	}
+
+	noteName := note[:len(note)-1]
+	pitch, valid := noteNameToPitch[noteName]
+	if !valid {
+		return 0
+	}
+
+	octave := float64(note[len(note)-1] - '0')
+	midiNumber := 12*(octave+1) + pitch
+	return 440 * math.Pow(2, (midiNumber-69)/12)
+}
+
 func ConvertToMIDI(tracks [][]MidiNote) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	WriteHeader(buf, len(tracks))
@@ -35,10 +72,6 @@ func ConvertToMIDI(tracks [][]MidiNote) ([]byte, error) {
 		}
 	}
 	return buf.Bytes(), nil
-}
-
-func ConvertToMIDITracks(parsedBEN []MidiNote) [][]MidiNote {
-	return [][]MidiNote{parsedBEN}
 }
 
 func WriteHeader(w io.Writer, numTracks int) {
@@ -68,21 +101,25 @@ func WriteProgramChange(w io.Writer, channel int, program int) {
 	w.Write([]byte{0x00, byte(0xC0 + channel - 1), byte(program)})
 }
 
+// writeDeltaTime writes a delta time value in MIDI ticks as a variable-length quantity to an io.Writer
 func writeDeltaTime(w io.Writer, deltaTime int) error {
-	var buf [4]byte
-	endIndex := 0
-	for i := 3; i >= 0; i-- {
-		buf[i] = byte(deltaTime)&0x7F | 0x80
-		deltaTime >>= 7
-		if deltaTime == 0 {
-			endIndex = i
-			break
-		}
-	}
-	buf[3] &= 0x7F
-	_, err := w.Write(buf[endIndex:])
-	return err
+	vlq := deltaTimeToVLQ(deltaTime)
+	return writeBytes(w, vlq)
 }
+
+// deltaTimeToVLQ converts a delta time value in MIDI ticks to a variable-length quantity representation
+func deltaTimeToVLQ(deltaTime int) []byte {
+	var buf []byte
+	current := deltaTime & 0x7F
+
+	for deltaTime >>= 7; deltaTime > 0; deltaTime >>= 7 {
+		buf = append([]byte{byte(current | 0x80)}, buf...)
+		current = deltaTime & 0x7F
+	}
+	buf = append([]byte{byte(current)}, buf...)
+	return buf
+}
+
 func deltaTimeLength(value int) int {
 	if value < 0x80 {
 		return 1
@@ -94,54 +131,4 @@ func deltaTimeLength(value int) int {
 		return 3
 	}
 	return 4
-}
-
-func WriteTrack(w io.Writer, notes []MidiNote) error {
-	midiNotes := make([]int, len(notes))
-
-	// Calculate the MIDI note numbers and track length
-	trackLength := uint32(0)
-	for i, note := range notes {
-		midiNote, _ := FrequencyToMidi(note.Frequency)
-		midiNotes[i] = midiNote
-		trackLength += 3 + uint32(deltaTimeLength(DurationToTicks(note.Duration)))
-	}
-	trackLength += 4 // For the end of track event
-
-	// Write the track header
-	if err := writeBytes(w, []byte{77, 84, 114, 107}); err != nil { // MTrk
-		return err
-	}
-	if err := writeUint32(w, trackLength); err != nil {
-		return err
-	}
-
-	lastNoteOff := -1
-	for i, note := range notes {
-		midiNote, pitchBend := FrequencyToMidi(note.Frequency)
-
-		// Note Off
-		if lastNoteOff != -1 {
-			if err := writeDeltaTime(w, DurationToTicks(notes[lastNoteOff].Duration)); err != nil {
-				return err
-			}
-			WriteNoteOff(w, 0, midiNotes[lastNoteOff], 0)
-		}
-
-		// Note On
-		if err := writeDeltaTime(w, 0); err != nil {
-			return err
-		}
-		WriteNoteOn(w, 0, midiNote, note.Velocity)
-		WritePitchBend(w, 0, pitchBend)
-
-		lastNoteOff = i
-	}
-
-	// Write the end of track event
-	if err := writeDeltaTime(w, DurationToTicks(notes[lastNoteOff].Duration)); err != nil {
-		return err
-	}
-
-	return writeBytes(w, []byte{0xFF, 0x2F, 0x00}) // End of track
 }
