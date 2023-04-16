@@ -65,12 +65,19 @@ func NoteToFrequency(note string) float64 {
 
 func ConvertToMIDI(tracks [][]MidiNote) ([]byte, error) {
 	buf := new(bytes.Buffer)
+
+	// Write MIDI header
 	WriteHeader(buf, len(tracks))
+
+	// Write tracks
 	for _, track := range tracks {
-		if err := WriteTrack(buf, track); err != nil {
+		trackData, err := ConvertToMIDITracks(track)
+		if err != nil {
 			return nil, err
 		}
+		buf.Write(trackData)
 	}
+
 	return buf.Bytes(), nil
 }
 

@@ -7,25 +7,16 @@ import (
 
 var lastNoteOn MidiNote
 
-func ConvertToMIDITracks(tracks [][]MidiNote) ([][]byte, error) {
-	var midiTracks [][]byte
-	for _, track := range tracks {
-		buf := new(bytes.Buffer)
+func ConvertToMIDITracks(tracks []MidiNote) ([]byte, error) {
+	buf := new(bytes.Buffer)
 
-		// Write track header
-		WriteHeader(buf, 1)
-
-		// Write track data
-		err := WriteTrack(buf, track)
-		if err != nil {
-			return nil, err
-		}
-
-		// Add track data to midiTracks
-		midiTracks = append(midiTracks, buf.Bytes())
+	// Write track header
+	err := WriteTrack(buf, tracks)
+	if err != nil {
+		return nil, err
 	}
 
-	return midiTracks, nil
+	return buf.Bytes(), nil
 }
 
 func WriteTrack(w io.Writer, notes []MidiNote) error {
@@ -34,7 +25,7 @@ func WriteTrack(w io.Writer, notes []MidiNote) error {
 	for i, note := range notes {
 		deltaTime := 0
 		if i > 0 {
-			deltaTime = int(note.Duration.Seconds() * 96)
+			deltaTime = int(note.Duration.Seconds() * 96.0)
 		}
 		trackLength += deltaTimeLength(deltaTime)
 		trackLength += 3 // Note on
@@ -49,7 +40,7 @@ func WriteTrack(w io.Writer, notes []MidiNote) error {
 	for i, note := range notes {
 		deltaTime := 0
 		if i > 0 {
-			deltaTime = int(note.Duration.Seconds() * 96)
+			deltaTime = int(note.Duration.Seconds() * 96.0)
 		}
 
 		// Write delta time
@@ -72,7 +63,8 @@ func WriteTrack(w io.Writer, notes []MidiNote) error {
 
 		// Write note off
 		if !note.Slur {
-			WriteNoteOff(w, note.Channel, midiNote, deltaTime)
+			noteOffDeltaTime := int(note.Duration.Seconds() * 96.0)
+			WriteNoteOff(w, note.Channel, midiNote, noteOffDeltaTime)
 		}
 
 		lastNoteOn = note
