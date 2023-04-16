@@ -4,4 +4,5 @@ input.txt
 *.swp
 *.tmp
 *.o
+cmd/pm/pm
 cmd/simple/simple
