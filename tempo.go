@@ -1,4 +1,4 @@
-package ben
+package midi
 
 import (
 	"sync"
