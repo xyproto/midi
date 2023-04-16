@@ -19,7 +19,7 @@ func frequencyToNoteName(freq float64) string {
 
 func main() {
 	// Create a slice of MIDI notes
-	notes := [][]midi.MidiNote{
+	notes := [][]midi.Note{
 		{
 			{Frequency: midi.NoteToFrequency("C4"), Duration: time.Millisecond * 300, Velocity: 127, Channel: 1, Instrument: 0, Slur: false},
 			{Frequency: midi.NoteToFrequency("D4"), Duration: time.Millisecond * 300, Velocity: 127, Channel: 1, Instrument: 0, Slur: false},

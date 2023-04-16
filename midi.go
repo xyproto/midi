@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type MidiNote struct {
+type Note struct {
 	Frequency  float64
 	Duration   time.Duration
 	Velocity   byte
@@ -63,7 +63,7 @@ func NoteToFrequency(note string) float64 {
 	return 440 * math.Pow(2, (midiNumber-69)/12)
 }
 
-func ConvertToMIDI(tracks [][]MidiNote) ([]byte, error) {
+func ConvertToMIDI(tracks [][]Note) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Write MIDI header

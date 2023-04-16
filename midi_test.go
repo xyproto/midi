@@ -34,7 +34,7 @@ func TestFrequencyToMidi(t *testing.T) {
 }
 
 func TestConvertToMIDI(t *testing.T) {
-	notes := [][]MidiNote{
+	notes := [][]Note{
 		{
 			{Frequency: 440.0, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
 			{Frequency: 261.63, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
@@ -53,7 +53,7 @@ func TestConvertToMIDI(t *testing.T) {
 }
 
 func TestWriteTrack(t *testing.T) {
-	notes := []MidiNote{
+	notes := []Note{
 		{Frequency: 440.0, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
 		{Frequency: 261.63, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},
 		{Frequency: 587.33, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false},

@@ -5,9 +5,9 @@ import (
 	"io"
 )
 
-var lastNoteOn MidiNote
+var lastNoteOn Note
 
-func ConvertToMIDITracks(tracks []MidiNote) ([]byte, error) {
+func ConvertToMIDITracks(tracks []Note) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	// Write track header
@@ -19,7 +19,7 @@ func ConvertToMIDITracks(tracks []MidiNote) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func WriteTrack(w io.Writer, notes []MidiNote) error {
+func WriteTrack(w io.Writer, notes []Note) error {
 	// Calculate track length in bytes
 	trackLength := 0
 	for i, note := range notes {
