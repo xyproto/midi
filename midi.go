@@ -2,7 +2,9 @@ package midi
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
+	"log"
 	"math"
 	"time"
 )
@@ -14,6 +16,21 @@ type Note struct {
 	Channel    int
 	Instrument int
 	Slur       bool
+	Start      int
+}
+
+type MIDIFile struct {
+	formatType uint16
+	tracks     uint16
+	division   uint16
+}
+
+func NewMIDIFile(formatType, tracks, division uint16) *MIDIFile {
+	return &MIDIFile{
+		formatType: formatType,
+		tracks:     tracks,
+		division:   division,
+	}
 }
 
 func FrequencyToMidi(freq float64) (int, int) {
@@ -66,33 +83,109 @@ func NoteToFrequency(note string) float64 {
 func ConvertToMIDI(tracks [][]Note) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
-	// Write MIDI header
-	WriteHeader(buf, len(tracks))
+	midi := NewMIDIFile(1, uint16(len(tracks)), 96)
+	index, err := midi.WriteHeader(buf)
+	if err != nil {
+		return nil, err
+	}
 
-	// Write tracks
 	for _, track := range tracks {
-		trackData, err := ConvertToMIDITracks(track)
+		trackData, err := ConvertToMIDITrack(track)
 		if err != nil {
 			return nil, err
 		}
-		buf.Write(trackData)
+		index = midi.WriteTrack(buf, index, trackData)
 	}
 
 	return buf.Bytes(), nil
 }
 
-func WriteHeader(w io.Writer, numTracks int) {
-	w.Write([]byte("MThd"))                   // MIDI header chunk
-	w.Write(uint32ToBytes(6))                 // Header length
-	w.Write(uint16ToBytes(1))                 // Format type (1: multiple tracks)
-	w.Write(uint16ToBytes(uint16(numTracks))) // Number of tracks
-	w.Write(uint16ToBytes(96))                // Division (ticks per quarter note)
+func (m *MIDIFile) WriteHeader(w io.Writer) (int, error) {
+	index := 0
+	n, err := w.Write([]byte("MThd"))
+	if err != nil {
+		return index, err
+	}
+	index += n
+
+	err = binary.Write(w, binary.BigEndian, uint32(6))
+	if err != nil {
+		return index, err
+	}
+	index += 4
+
+	err = binary.Write(w, binary.BigEndian, m.formatType)
+	if err != nil {
+		return index, err
+	}
+	index += 2
+
+	err = binary.Write(w, binary.BigEndian, m.tracks)
+	if err != nil {
+		return index, err
+	}
+	index += 2
+
+	err = binary.Write(w, binary.BigEndian, m.division)
+	if err != nil {
+		return index, err
+	}
+	index += 2
+
+	return index, nil
+}
+
+func (m *MIDIFile) WriteTrack(w io.Writer, index int, events []byte) int {
+	n, err := w.Write([]byte("MTrk"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	index += n
+
+	err = binary.Write(w, binary.BigEndian, uint32(len(events)))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	index += 4
+
+	n, err = w.Write(events)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	index += n
+
+	return index
+}
+
+func ConvertToMIDITrack(notes []Note) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	lastNoteOffTime := 0
+	for _, note := range notes {
+		midiNote, pitchBend := FrequencyToMidi(note.Frequency)
+
+		// Write program change
+		WriteProgramChange(buf, note.Channel, note.Instrument)
+
+		if note.Slur {
+			WritePitchBend(buf, note.Channel, pitchBend)
+		}
+
+		deltaTime := note.Start - lastNoteOffTime
+		writeDeltaTime(buf, deltaTime)
+		WriteNoteOn(buf, note.Channel, midiNote, note.Velocity)
+
+		noteOffTicks := int(note.Duration.Seconds() * 96)
+		writeDeltaTime(buf, noteOffTicks)
+		WriteNoteOff(buf, note.Channel, midiNote, 0)
+
+		lastNoteOffTime = note.Start + noteOffTicks
+	}
+	return buf.Bytes(), nil
 }
 
 func WritePitchBend(w io.Writer, channel int, pitchBend int) {
 	pitchBendLSB := pitchBend & 0x7F
 	pitchBendMSB := (pitchBend >> 7) & 0x7F
-
 	w.Write([]byte{0x00, byte(0xE0 + channel - 1), byte(pitchBendLSB), byte(pitchBendMSB)})
 }
 
@@ -108,13 +201,11 @@ func WriteProgramChange(w io.Writer, channel int, program int) {
 	w.Write([]byte{0x00, byte(0xC0 + channel - 1), byte(program)})
 }
 
-// writeDeltaTime writes a delta time value in MIDI ticks as a variable-length quantity to an io.Writer
 func writeDeltaTime(w io.Writer, deltaTime int) error {
 	vlq := deltaTimeToVLQ(deltaTime)
 	return writeBytes(w, vlq)
 }
 
-// deltaTimeToVLQ converts a delta time value in MIDI ticks to a variable-length quantity representation
 func deltaTimeToVLQ(deltaTime int) []byte {
 	var buf []byte
 	current := deltaTime & 0x7F
@@ -127,15 +218,7 @@ func deltaTimeToVLQ(deltaTime int) []byte {
 	return buf
 }
 
-func deltaTimeLength(value int) int {
-	if value < 0x80 {
-		return 1
-	}
-	if value < 0x4000 {
-		return 2
-	}
-	if value < 0x200000 {
-		return 3
-	}
-	return 4
+func writeBytes(w io.Writer, data []byte) error {
+	_, err := w.Write(data)
+	return err
 }

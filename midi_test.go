@@ -69,3 +69,34 @@ func TestWriteTrack(t *testing.T) {
 		t.Errorf("Expected non-empty track data")
 	}
 }
+
+func TestSimpleMIDIFile(t *testing.T) {
+	notes := [][]Note{
+		{
+			{Frequency: 440.0, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false, Start: 0},
+			{Frequency: 261.63, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false, Start: 480},
+			{Frequency: 587.33, Duration: time.Millisecond * 500, Velocity: 64, Channel: 1, Instrument: 1, Slur: false, Start: 960},
+		},
+	}
+
+	midiData, err := ConvertToMIDI(notes)
+	if err != nil {
+		t.Fatalf("Failed to convert to MIDI: %v", err)
+	}
+
+	if len(midiData) == 0 {
+		t.Errorf("Expected non-empty MIDI data")
+	}
+
+	// Check the header
+	expectedHeader := []byte("MThd\x00\x00\x00\x06\x00\x01\x00\x01\x00\x60")
+	if !bytes.Equal(midiData[:len(expectedHeader)], expectedHeader) {
+		t.Errorf("MIDI header not as expected. Got: %v, expected: %v", midiData[:len(expectedHeader)], expectedHeader)
+	}
+
+	// Check the track header
+	expectedTrackHeader := []byte("MTrk")
+	if !bytes.Equal(midiData[len(expectedHeader):len(expectedHeader)+len(expectedTrackHeader)], expectedTrackHeader) {
+		t.Errorf("MIDI track header not as expected. Got: %v, expected: %v", midiData[len(expectedHeader):len(expectedHeader)+len(expectedTrackHeader)], expectedTrackHeader)
+	}
+}

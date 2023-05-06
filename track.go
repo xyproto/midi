@@ -1,22 +1,22 @@
 package midi
 
 import (
-	"bytes"
 	"io"
 )
 
 var lastNoteOn Note
 
-func ConvertToMIDITracks(tracks []Note) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	// Write track header
-	err := WriteTrack(buf, tracks)
-	if err != nil {
-		return nil, err
+func DeltaTimeLength(value int) int {
+	if value < 0x80 {
+		return 1
 	}
-
-	return buf.Bytes(), nil
+	if value < 0x4000 {
+		return 2
+	}
+	if value < 0x200000 {
+		return 3
+	}
+	return 4
 }
 
 func WriteTrack(w io.Writer, notes []Note) error {
@@ -27,7 +27,7 @@ func WriteTrack(w io.Writer, notes []Note) error {
 		if i > 0 {
 			deltaTime = int(note.Duration.Seconds() * 96.0)
 		}
-		trackLength += deltaTimeLength(deltaTime)
+		trackLength += DeltaTimeLength(deltaTime)
 		trackLength += 3 // Note on
 		trackLength += 3 // Note off
 	}
