@@ -1,6 +1,7 @@
 package midi
 
 import (
+	"io"
 	"time"
 )
 
@@ -14,6 +15,7 @@ const (
 type MIDI struct {
 	Format   uint16
 	Division uint16
+	BPM      float64
 	Tracks   []*Track
 }
 
@@ -38,14 +40,15 @@ type Note struct {
 	Channel    uint8
 	Instrument uint8
 	Slur       bool
-	Start      uint32
+	StartPause time.Duration
 }
 
 // NewMIDI creates a new MIDI file or sequence of MIDI events
-func NewMIDI(format, division uint16) *MIDI {
+func NewMIDI(format, division uint16, bpm float64) *MIDI {
 	return &MIDI{
 		Format:   format,
 		Division: division,
+		BPM:      bpm,
 		Tracks:   make([]*Track, 0),
 	}
 }
@@ -68,22 +71,26 @@ func (t *Track) AddEvent(event *Event) {
 }
 
 // AddNote adds a note to a Track as an Event
-func (t *Track) AddNote(note *Note) {
+func (m *MIDI) AddNote(t *Track, note *Note) {
 	// Convert frequency to MIDI note
 	midiNote, _ := FrequencyToMidi(note.Frequency)
 
+	// Convert the note start pause and duration to ticks
+	startPauseTicks := m.DurationToTicks(note.StartPause)
+	durationTicks := m.DurationToTicks(note.Duration)
+
 	// Create "note on" event
 	noteOn := &Event{
-		DeltaTime: note.Start,
-		Type:      0x90, // Note-on event
+		DeltaTime: startPauseTicks,
+		Type:      EventNoteOn,
 		Channel:   note.Channel,
 		Data:      []byte{midiNote, note.Velocity},
 	}
 
 	// Create "note off" event
 	noteOff := &Event{
-		DeltaTime: uint32(note.Duration.Milliseconds()),
-		Type:      0x90, // Note-on event with velocity 0 = note-off
+		DeltaTime: durationTicks,
+		Type:      EventNoteOff,
 		Channel:   note.Channel,
 		Data:      []byte{midiNote, 0}, // Velocity is 0
 	}
@@ -93,6 +100,38 @@ func (t *Track) AddNote(note *Note) {
 	t.AddEvent(noteOff)
 }
 
+// Size returns the byte size of an Event
 func (e *Event) Size() int {
 	return 1 + len(e.Data) // 1 byte for the event type, plus the size of the data
+}
+
+// Write writes the MIDI data to an io.Writer.
+func (m *MIDI) Write(w io.Writer) error {
+	// Write MIDI header
+	if err := writeMIDIHeader(w, m); err != nil {
+		return err
+	}
+
+	// Write each track
+	for _, track := range m.Tracks {
+		if err := writeTrack(w, track); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DurationToTicks converts a time duration to the number of ticks
+func (m *MIDI) DurationToTicks(d time.Duration) uint32 {
+	ticksPerBeat := float64(m.Division)
+	ticksPerSecond := ticksPerBeat * m.BPM / 60.0
+	return uint32(d.Seconds() * ticksPerSecond)
+}
+
+// TicksToDuration converts the number of ticks to a time duration
+func (m *MIDI) TicksToDuration(ticks uint32) time.Duration {
+	ticksPerBeat := float64(m.Division)
+	ticksPerSecond := ticksPerBeat * m.BPM / 60.0
+	return time.Duration(float64(ticks) / ticksPerSecond * float64(time.Second))
 }

@@ -3,7 +3,6 @@ package midi
 import (
 	"encoding/binary"
 	"io"
-	"math"
 )
 
 // This is a list of constants and utility functions for low-level MIDI operations.
@@ -89,24 +88,6 @@ func readMIDIUint8(r io.Reader) (uint8, error) {
 	var value uint8
 	err := binary.Read(r, binary.BigEndian, &value)
 	return value, err
-}
-
-func FrequencyToMidi(frequency float64) (note uint8, bend int) {
-	const A4 = 440.0
-	const A4MidiNote = 69
-	midi := math.Log2(frequency/A4)*12 + A4MidiNote
-
-	// Calculate the pitch bend value based on the fraction part of the midi number
-	bend = int(math.Round((midi - math.Floor(midi)) * 8192)) // 8192 is the range for pitch bend (-8192 to 8191)
-
-	// Limit the midi note to valid range
-	if midi < 0 {
-		midi = 0
-	} else if midi > 127 {
-		midi = 127
-	}
-
-	return uint8(midi), bend
 }
 
 func uint16ToBytes(value uint16) []byte {

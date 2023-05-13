@@ -5,18 +5,6 @@ import (
 	"testing"
 )
 
-func TestFrequencyToMidi(t *testing.T) {
-	note, bend := FrequencyToMidi(440.0)
-	if note != 69 || bend != 0 {
-		t.Errorf("FrequencyToMidi(440.0) = %d, %d, want 69, 0", note, bend)
-	}
-
-	note, bend = FrequencyToMidi(466.16)
-	if note != 69 || bend <= 0 {
-		t.Errorf("FrequencyToMidi(466.16) = %d, %d, want 69, positive bend", note, bend)
-	}
-}
-
 func TestUint16ToBytes(t *testing.T) {
 	bytes := uint16ToBytes(0x1234)
 	if bytes[0] != 0x12 || bytes[1] != 0x34 {
