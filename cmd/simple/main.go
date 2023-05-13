@@ -15,9 +15,9 @@ func main() {
 
 	// Create a slice of MIDI notes
 	notes := []midi.Note{
-		{Frequency: midi.NoteToFrequency("C4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, StartPause: time.Millisecond * 0},
-		{Frequency: midi.NoteToFrequency("D4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, StartPause: time.Millisecond * 0},
-		{Frequency: midi.NoteToFrequency("E4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, StartPause: time.Millisecond * 0},
+		{Frequency: midi.NoteToFrequency("C4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
+		{Frequency: midi.NoteToFrequency("D4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
+		{Frequency: midi.NoteToFrequency("E4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
 	}
 
 	// Create a new track and add it to the MIDI object

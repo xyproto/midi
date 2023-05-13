@@ -7,16 +7,18 @@ import (
 
 // MIDI event type constants
 const (
-	EventNoteOff = 0x80
-	EventNoteOn  = 0x90
+	EventNoteOff       = 0x80
+	EventNoteOn        = 0x90
+	EventProgramChange = 0xC0
 )
 
 // MIDI represents a MIDI file or a sequence of MIDI events
 type MIDI struct {
-	Format   uint16
-	Division uint16
-	BPM      float64
-	Tracks   []*Track
+	Format         uint16
+	Division       uint16
+	BPM            float64
+	Tracks         []*Track
+	ChannelProgram map[uint8]uint8
 }
 
 // Track represents a track in a MIDI file or a sequence of MIDI events
@@ -29,6 +31,7 @@ type Event struct {
 	DeltaTime uint32
 	Type      uint8
 	Channel   uint8
+	Program   uint8
 	Data      []byte
 }
 
@@ -41,15 +44,17 @@ type Note struct {
 	Instrument uint8
 	Slur       bool
 	StartPause time.Duration
+	Program    uint8
 }
 
 // NewMIDI creates a new MIDI file or sequence of MIDI events
 func NewMIDI(format, division uint16, bpm float64) *MIDI {
 	return &MIDI{
-		Format:   format,
-		Division: division,
-		BPM:      bpm,
-		Tracks:   make([]*Track, 0),
+		Format:         format,
+		Division:       division,
+		BPM:            bpm,
+		Tracks:         make([]*Track, 0),
+		ChannelProgram: make(map[uint8]uint8),
 	}
 }
 
@@ -70,7 +75,6 @@ func (t *Track) AddEvent(event *Event) {
 	t.Events = append(t.Events, event)
 }
 
-// AddNote adds a note to a Track as an Event
 func (m *MIDI) AddNote(t *Track, note *Note) {
 	// Convert frequency to MIDI note
 	midiNote, _ := FrequencyToMidi(note.Frequency)
@@ -79,11 +83,27 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 	startPauseTicks := m.DurationToTicks(note.StartPause)
 	durationTicks := m.DurationToTicks(note.Duration)
 
+	// Check if program change is needed
+	currentProgram := m.GetProgram(note.Channel)
+	if note.Program != currentProgram {
+		// Create program change event
+		programChange := &Event{
+			DeltaTime: startPauseTicks,
+			Type:      EventProgramChange,
+			Channel:   note.Channel,
+			Program:   note.Program,
+			Data:      []byte{note.Program},
+		}
+		t.AddEvent(programChange)
+		m.SetProgram(note.Channel, note.Program)
+	}
+
 	// Create "note on" event
 	noteOn := &Event{
 		DeltaTime: startPauseTicks,
 		Type:      EventNoteOn,
 		Channel:   note.Channel,
+		Program:   note.Program,
 		Data:      []byte{midiNote, note.Velocity},
 	}
 
@@ -92,6 +112,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 		DeltaTime: durationTicks,
 		Type:      EventNoteOff,
 		Channel:   note.Channel,
+		Program:   note.Program,
 		Data:      []byte{midiNote, 0}, // Velocity is 0
 	}
 
