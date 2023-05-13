@@ -6,3 +6,4 @@ input.txt
 *.o
 cmd/pm/pm
 cmd/simple/simple
+test.mid
