@@ -7,3 +7,5 @@ input.txt
 cmd/pm/pm
 cmd/simple/simple
 test.mid
+include.txt
+output.mid
