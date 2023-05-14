@@ -44,11 +44,7 @@ func writeMIDIHeader(w io.Writer, m *MIDI) error {
 	}
 
 	// Time division
-	if err := writeMIDIUint16(w, m.Division); err != nil {
-		return err
-	}
-
-	return nil
+	return writeMIDIUint16(w, m.Division)
 }
 
 func writeTrack(w io.Writer, t *Track) error {

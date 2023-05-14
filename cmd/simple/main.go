@@ -9,7 +9,7 @@ import (
 	"github.com/xyproto/midi"
 )
 
-func createChord(notes []string, startPause time.Duration) []midi.Note {
+func createChord(notes []string, eventDelay time.Duration) []midi.Note {
 	var chord []midi.Note
 	for _, note := range notes {
 		chord = append(chord, midi.Note{
@@ -17,7 +17,7 @@ func createChord(notes []string, startPause time.Duration) []midi.Note {
 			Duration:   time.Second, // each note lasts for 1 second
 			Velocity:   127,
 			Channel:    1,
-			StartPause: startPause,
+			EventDelay: eventDelay,
 		})
 	}
 	return chord

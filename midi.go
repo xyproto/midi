@@ -51,8 +51,8 @@ type Note struct {
 	Duration   time.Duration
 	Velocity   uint8
 	Channel    uint8
-	Program    uint8 // The sound to use for the note
-	EventDelay time.Duration
+	Program    uint8         // The sound to use for the note
+	EventDelay time.Duration // Wait before the note should be played (from previous note? from the start of the track?)
 }
 
 // NewMIDI creates a new MIDI file or sequence of MIDI events
@@ -257,8 +257,8 @@ func (m *MIDI) AddChord(notes []string, eventDelay time.Duration) {
 	for _, note := range chord {
 		// If enough tracks exist, use them. Otherwise, create a new track.
 		var t *Track
-		if len(m.tracks) >= len(chord) {
-			t = m.tracks[len(chord)-1]
+		if len(m.Tracks) >= len(chord) {
+			t = m.Tracks[len(chord)-1]
 		} else {
 			t = NewTrack()
 			m.AddTrack(t)
