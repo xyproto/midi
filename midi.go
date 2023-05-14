@@ -16,9 +16,9 @@ const (
 
 	DefaultNoteDuration   = 500 * time.Millisecond
 	DefaultNoteVelocity   = 64
-	DefaultNoteChannel    = 0
-	DefaultNoteInstrument = 0
-	DefaultNoteProgram    = 0
+	DefaultNoteChannel    = 1
+	DefaultNoteInstrument = 1
+	DefaultNoteProgram    = 1
 )
 
 // MIDI represents a MIDI file or a sequence of MIDI events
@@ -51,10 +51,8 @@ type Note struct {
 	Duration   time.Duration
 	Velocity   uint8
 	Channel    uint8
-	Instrument uint8
-	Slur       bool
-	StartDelay time.Duration
-	Program    uint8
+	Program    uint8 // The sound to use for the note
+	EventDelay time.Duration
 }
 
 // NewMIDI creates a new MIDI file or sequence of MIDI events
@@ -91,7 +89,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 	midiNote, _ := FrequencyToMidi(note.Frequency)
 
 	// Convert the note start pause and duration to ticks
-	startPauseTicks := m.DurationToTicks(note.StartDelay)
+	eventDelayTicks := m.DurationToTicks(note.EventDelay)
 	durationTicks := m.DurationToTicks(note.Duration)
 
 	// Check if program change is needed
@@ -99,7 +97,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 	if note.Program != currentProgram {
 		// Create program change event
 		programChange := &Event{
-			DeltaTime: startPauseTicks,
+			DeltaTime: eventDelayTicks,
 			Type:      EventProgramChange,
 			Channel:   note.Channel,
 			Program:   note.Program,
@@ -111,7 +109,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 
 	// Create "note on" event
 	noteOn := &Event{
-		DeltaTime: startPauseTicks,
+		DeltaTime: eventDelayTicks,
 		Type:      EventNoteOn,
 		Channel:   note.Channel,
 		Program:   note.Program,
@@ -120,7 +118,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 
 	// Create "note off" event
 	noteOff := &Event{
-		DeltaTime: durationTicks,
+		DeltaTime: eventDelayTicks + durationTicks, // delay after the "note on" event
 		Type:      EventNoteOff,
 		Channel:   note.Channel,
 		Program:   note.Program,
@@ -183,6 +181,10 @@ func (t *Track) AddNotesFromMap(m *MIDI) {
 	m.AddNotesFromMap(t, t.NoteMap)
 }
 
+func (m *MIDI) Commit(t *Track) {
+	m.AddNotesFromMap(t, t.NoteMap)
+}
+
 // AddNotesFromMap adds notes to a track from a map by their start time
 func (m *MIDI) AddNotesFromMap(t *Track, noteMap map[time.Duration][]*Note) {
 	// Convert map to a list of note start times and sort it
@@ -195,25 +197,26 @@ func (m *MIDI) AddNotesFromMap(t *Track, noteMap map[time.Duration][]*Note) {
 	})
 
 	// Add notes to track in order of start time
-	var lastStartTime time.Duration
 	for _, startTime := range startTimes {
 		notes := noteMap[startTime]
-		for _, note := range notes {
-			// Adjust the note's start delay to be relative to the last note
-			note.StartDelay = startTime - lastStartTime
+		for i, note := range notes {
+			// Adjust the note's start delay to be relative to the last note only for the first note in a chord
+			if i == 0 {
+				note.EventDelay = startTime
+			} else {
+				note.EventDelay = 0
+			}
 			m.AddNote(t, note)
-			lastStartTime = startTime
 		}
 	}
 }
 
-func (m *MIDI) AddNoteFromNoteString(t *Track, noteString string, startDelay time.Duration) error {
+func (m *MIDI) AddNoteFromNoteString(t *Track, noteString string, eventDelay, noteDuration time.Duration) error {
 	note := &Note{
-		StartDelay: startDelay,
-		Duration:   DefaultNoteDuration,
+		EventDelay: eventDelay,
+		Duration:   noteDuration,
 		Velocity:   DefaultNoteVelocity,
 		Channel:    DefaultNoteChannel,
-		Instrument: DefaultNoteInstrument,
 		Program:    DefaultNoteProgram,
 	}
 
@@ -231,6 +234,35 @@ func (m *MIDI) AddNoteFromNoteString(t *Track, noteString string, startDelay tim
 	}
 	note.Duration = duration
 
-	t.AddNoteToMap(startDelay, note)
+	t.AddNoteToMap(eventDelay, note)
 	return nil
+}
+
+func CreateChord(notes []string, eventDelay time.Duration) []Note {
+	var chord []Note
+	for _, note := range notes {
+		chord = append(chord, Note{
+			Frequency:  NoteNameToFrequency(note),
+			Duration:   time.Second, // each note lasts for 1 second
+			Velocity:   127,
+			Channel:    1,
+			EventDelay: eventDelay,
+		})
+	}
+	return chord
+}
+
+func (m *MIDI) AddChord(notes []string, eventDelay time.Duration) {
+	chord := CreateChord(notes, eventDelay)
+	for _, note := range chord {
+		// If enough tracks exist, use them. Otherwise, create a new track.
+		var t *Track
+		if len(m.tracks) >= len(chord) {
+			t = m.tracks[len(chord)-1]
+		} else {
+			t = NewTrack()
+			m.AddTrack(t)
+		}
+		m.AddNote(t, &note)
+	}
 }
