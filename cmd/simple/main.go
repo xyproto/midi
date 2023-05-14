@@ -9,27 +9,39 @@ import (
 	"github.com/xyproto/midi"
 )
 
+func createChord(notes []string, startPause time.Duration) []midi.Note {
+	var chord []midi.Note
+	for _, note := range notes {
+		chord = append(chord, midi.Note{
+			Frequency:  midi.NoteNameToFrequency(note),
+			Duration:   time.Second, // each note lasts for 1 second
+			Velocity:   127,
+			Channel:    1,
+			StartPause: startPause,
+		})
+	}
+	return chord
+}
+
 func main() {
-	// Create a new MIDI object
 	m := midi.NewMIDI(1, 480, 120) // Format 1 (multiple tracks), with 480 ticks per beat, and 120 BPM
 
-	// Create a slice of MIDI notes
-	notes := []midi.Note{
-		{Frequency: midi.NoteToFrequency("C4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
-		{Frequency: midi.NoteToFrequency("D4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
-		{Frequency: midi.NoteToFrequency("E4"), Duration: time.Millisecond * 100, Velocity: 127, Channel: 1, Program: 1, StartPause: time.Millisecond * 0},
+	chords := [][]string{
+		{"D4", "F4", "A4", "C5"},
+		{"G4", "B4", "D5", "F5"},
+		{"C4", "E4", "G4", "B4"},
+		{"A4", "C5", "E5", "G5"},
 	}
 
-	// Create a new track and add it to the MIDI object
-	t := midi.NewTrack()
-	m.AddTrack(t)
-
-	// Add each note to the track
-	for _, note := range notes {
-		m.AddNote(t, &note)
+	for i, chordNotes := range chords {
+		chord := createChord(chordNotes, time.Duration(i)*time.Second)
+		for _, note := range chord {
+			t := midi.NewTrack()
+			m.AddTrack(t)
+			m.AddNote(t, &note)
+		}
 	}
 
-	// Write the MIDI object to a file
 	f, err := os.Create("output.mid")
 	if err != nil {
 		log.Fatal(err)
