@@ -25,21 +25,21 @@ func TestFrequencyToMidi(t *testing.T) {
 	}
 }
 
-func TestNoteToFrequency(t *testing.T) {
+func TestNoteNameToFrequency(t *testing.T) {
 	// Test for A4
-	frequency := NoteToFrequency("A4")
+	frequency := NoteNameToFrequency("A4")
 	if math.Abs(frequency-440.0) > 0.5 {
 		t.Errorf("Expected frequency for A4 is 440Hz, but got %f", frequency)
 	}
 
 	// Test for C4
-	frequency = NoteToFrequency("C4")
+	frequency = NoteNameToFrequency("C4")
 	if math.Abs(frequency-261.63) > 0.5 {
 		t.Errorf("Expected frequency for C4 is 261.63Hz, but got %f", frequency)
 	}
 
 	// Test for D4
-	frequency = NoteToFrequency("D4")
+	frequency = NoteNameToFrequency("D4")
 	if math.Abs(frequency-293.66) > 0.5 {
 		t.Errorf("Expected frequency for D4 is 293.66Hz, but got %f", frequency)
 	}

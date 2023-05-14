@@ -1,7 +1,10 @@
 package midi
 
 import (
+	"fmt"
 	"io"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -10,6 +13,12 @@ const (
 	EventNoteOff       = 0x80
 	EventNoteOn        = 0x90
 	EventProgramChange = 0xC0
+
+	DefaultNoteDuration   = 500 * time.Millisecond
+	DefaultNoteVelocity   = 64
+	DefaultNoteChannel    = 0
+	DefaultNoteInstrument = 0
+	DefaultNoteProgram    = 0
 )
 
 // MIDI represents a MIDI file or a sequence of MIDI events
@@ -23,7 +32,8 @@ type MIDI struct {
 
 // Track represents a track in a MIDI file or a sequence of MIDI events
 type Track struct {
-	Events []*Event
+	NoteMap map[time.Duration][]*Note
+	Events  []*Event
 }
 
 // Event represents a MIDI event
@@ -43,7 +53,7 @@ type Note struct {
 	Channel    uint8
 	Instrument uint8
 	Slur       bool
-	StartPause time.Duration
+	StartDelay time.Duration
 	Program    uint8
 }
 
@@ -61,7 +71,8 @@ func NewMIDI(format, division uint16, bpm float64) *MIDI {
 // NewTrack creates a new Track
 func NewTrack() *Track {
 	return &Track{
-		Events: make([]*Event, 0),
+		NoteMap: NewNoteMap(),
+		Events:  make([]*Event, 0),
 	}
 }
 
@@ -80,7 +91,7 @@ func (m *MIDI) AddNote(t *Track, note *Note) {
 	midiNote, _ := FrequencyToMidi(note.Frequency)
 
 	// Convert the note start pause and duration to ticks
-	startPauseTicks := m.DurationToTicks(note.StartPause)
+	startPauseTicks := m.DurationToTicks(note.StartDelay)
 	durationTicks := m.DurationToTicks(note.Duration)
 
 	// Check if program change is needed
@@ -155,4 +166,71 @@ func (m *MIDI) TicksToDuration(ticks uint32) time.Duration {
 	ticksPerBeat := float64(m.Division)
 	ticksPerSecond := ticksPerBeat * m.BPM / 60.0
 	return time.Duration(float64(ticks) / ticksPerSecond * float64(time.Second))
+}
+
+// NewNoteMap creates a new map for storing notes by their start time
+func NewNoteMap() map[time.Duration][]*Note {
+	return make(map[time.Duration][]*Note)
+}
+
+// AddNoteToMap adds a note to a track's note map by its start time
+func (t *Track) AddNoteToMap(startTime time.Duration, note *Note) {
+	t.NoteMap[startTime] = append(t.NoteMap[startTime], note)
+}
+
+// AddNotesFromMap adds notes to a track from its note map
+func (t *Track) AddNotesFromMap(m *MIDI) {
+	m.AddNotesFromMap(t, t.NoteMap)
+}
+
+// AddNotesFromMap adds notes to a track from a map by their start time
+func (m *MIDI) AddNotesFromMap(t *Track, noteMap map[time.Duration][]*Note) {
+	// Convert map to a list of note start times and sort it
+	var startTimes []time.Duration
+	for startTime := range noteMap {
+		startTimes = append(startTimes, startTime)
+	}
+	sort.Slice(startTimes, func(i, j int) bool {
+		return startTimes[i] < startTimes[j]
+	})
+
+	// Add notes to track in order of start time
+	var lastStartTime time.Duration
+	for _, startTime := range startTimes {
+		notes := noteMap[startTime]
+		for _, note := range notes {
+			// Adjust the note's start delay to be relative to the last note
+			note.StartDelay = startTime - lastStartTime
+			m.AddNote(t, note)
+			lastStartTime = startTime
+		}
+	}
+}
+
+func (m *MIDI) AddNoteFromNoteString(t *Track, noteString string, startDelay time.Duration) error {
+	note := &Note{
+		StartDelay: startDelay,
+		Duration:   DefaultNoteDuration,
+		Velocity:   DefaultNoteVelocity,
+		Channel:    DefaultNoteChannel,
+		Instrument: DefaultNoteInstrument,
+		Program:    DefaultNoteProgram,
+	}
+
+	parts := strings.SplitN(noteString, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid note string format")
+	}
+
+	noteName := parts[0]
+	note.Frequency = NoteNameToFrequency(noteName)
+
+	duration, err := time.ParseDuration(parts[1])
+	if err != nil {
+		return err
+	}
+	note.Duration = duration
+
+	t.AddNoteToMap(startDelay, note)
+	return nil
 }

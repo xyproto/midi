@@ -24,7 +24,7 @@ func FrequencyToMidi(frequency float64) (note uint8, bend int) {
 	return uint8(midi), bend
 }
 
-func NoteToFrequency(note string) float64 {
+func NoteNameToFrequency(note string) float64 {
 	noteNameToPitch := map[string]float64{
 		"C":  0,
 		"C#": 1,
